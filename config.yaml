@@ -1,0 +1,54 @@
+#config.yaml - configuration file for BioDyn
+#users control the BioDyn using this config file
+
+#important config, basedata, intermediate results and Age column name in your basedata.csv
+DATASET_PATH: 'basedata.csv'
+INTERMEDIATE_RESULTS_PATH: 'intermediate_results.xlsx'
+AGE_COLUMN_NAME: 'Age (years)' #note this must match your exact Age column name in ur basedata
+
+#here are the biomarkers user can select dynamically according to the basedata.csv columns
+#you can choose some or all of your biomarkers in your basedata.csv
+#note it must exactly match the column headings for it to work
+BIOMARKER_FEATURES:
+  - 'SBP (mmHg)'
+  - 'DBP (mmHg)'
+  - 'Cholesterol (LDL Calc)'
+  - 'Cholesterol (Total)'
+  - 'Triglycerides'
+  - 'Glucose Fasting'
+
+#here we define default values that will showup at BioDyn web interface
+#same deal, the name must match BIOMARKER_FEATURE ones then the default val can be defined
+DEFAULT_BIOMARKER_VALUES:
+  'SBP (mmHg)': 120
+  'DBP (mmHg)': 80
+  'Cholesterol (LDL Calc)': 3.0
+  'Cholesterol (Total)': 5.0
+  'Triglycerides': 1.7
+  'Glucose Fasting': 5.6
+
+#here is how to define default age value for the web interface of BioDyn
+DEFAULT_AGE_FORM_VALUE: 55
+
+#if you wish to add PCA or not set to true or false respectively
+USE_PCA: true #set true/false as needed
+
+# --- Output & Saving Configuration ---
+PLOTS_OUTPUT_DIR: 'generated_plots/'
+SAVE_TRAINING_BA_VALUES: true
+SAVE_PLOTS_ON_TRAIN: true
+PLOT_FILENAME_TIMESTAMP: true
+
+# --- Plot Labels ---
+plot_labels:
+  plot1_title: 'CA vs BA_EC (from YAML)x'
+  plot1_xlabel: 'Chronological Age (YAML)x'
+  plot1_ylabel: 'Biological Age (BA_EC) (YAML)x'
+  plot2_title: 'CA vs BA Acceleration (YAML)'
+  plot2_xlabel: 'Chronological Age (YAML)'
+  plot2_ylabel: 'BA Acceleration (Years) (YAML)'
+  plot3_title: 'Distribution of BA Acceleration (YAML)'
+  plot3_xlabel: 'BA Acceleration (Years) (YAML)'
+  plot3_ylabel: 'Density / Frequency (YAML)'
+
+# --- End of config.yaml ---

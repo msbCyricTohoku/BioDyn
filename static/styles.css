@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0a0a0f;
+    color: #00ffee;
+    font-family: 'Share Tech Mono', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+}
+
+.container {
+    background: rgba(10, 10, 20, 0.95);
+    border: 1px solid #00ffee;
+    border-radius: 10px;
+    padding: 30px;
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 30px;
+    box-shadow: 0 0 20px #00ffee66;
+}
+
+h1 {
+    font-family: 'Orbitron', sans-serif;
+    text-align: center;
+    font-size: 2.5em;
+    margin-bottom: 30px;
+    color: #00ffee;
+    text-shadow: 0 0 10px #00ffee99;
+}
+
+h2 {
+    text-align: center;
+    font-size: 1.5em;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+form {
+    width: 100%;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    font-size: 0.9em;
+    margin-bottom: 5px;
+}
+
+input[type="number"],
+input[type="file"] {
+    background: #000;
+    border: 1px solid #00ffee;
+    color: #00ffee;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 1em;
+    width: 100%;
+}
+
+input[type="file"] {
+    cursor: pointer;
+}
+
+button, .button-link {
+    background: none;
+    border: 2px solid #00ffee;
+    color: #00ffee;
+    font-size: 1em;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+    text-align: center;
+    display: block;
+    margin: 10px auto 0;
+    width: 100%;
+    text-decoration: none;
+}
+
+button:hover, .button-link:hover {
+    background: #00ffee;
+    color: #0a0a0f;
+}
+
+.flashes {
+    list-style: none;
+    margin-top: 20px;
+}
+
+.flashes li {
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #111;
+    border-left: 5px solid #00ffee;
+    font-size: 0.95em;
+}
+
+.result {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.footer {
+    margin-top: auto;
+    padding: 10px;
+    text-align: center;
+    font-size: 0.8em;
+    color: #555;
+}

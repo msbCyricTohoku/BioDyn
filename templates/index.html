@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioDyn</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>BioDyn</h1>
+        <form method="POST">
+            <div class="form-grid">
+                {% for feature in feature_columns %}
+                <div class="form-group">
+                    <label for="{{ feature }}">{{ feature }}</label>
+                    <input type="number" step="any" id="{{ feature }}" name="{{ feature }}" value="{{ user_data.get(feature, '') }}" required>
+                </div>
+                {% endfor %}
+                <div class="form-group">
+                    <label for="Age">Chronological Age</label>
+                    <input type="number" step="any" id="Age" name="Age" value="{{ user_data.get('Age', '') }}" required>
+                </div>
+            </div>
+            <button type="submit">Calculate BA</button>
+        </form>
+
+        {% if biological_age is not none %}
+        <div class="result">
+            <h2>Biological Age: {{ "%.2f"|format(biological_age) }} years</h2>
+        </div>
+        {% endif %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="container additional">
+        <form action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".csv, .xlsx, .xls" required>
+            <button type="submit">Upload Data</button>
+        </form>
+        <a href="{{ url_for('plot') }}" target="_blank" class="button-link">View Plot</a>
+    </div>
+
+    <footer class="footer">
+        <p>BioDyn — dynamic data-driven platform for real-time data integration and biological age estimation</p>
+    </footer>
+</body>
+</html>
