@@ -33,13 +33,13 @@ DEFAULT_AGE_FORM_VALUE: 55
 #if you wish to add PCA or not set to true or false respectively
 USE_PCA: true #set true/false as needed
 
-# --- Output & Saving Configuration ---
+#output & saving configs
 PLOTS_OUTPUT_DIR: 'generated_plots/'
 SAVE_TRAINING_BA_VALUES: true
 SAVE_PLOTS_ON_TRAIN: true
 PLOT_FILENAME_TIMESTAMP: true
 
-# --- Plot Labels ---
+#plot labels can be controlled here
 plot_labels:
   plot1_title: 'CA vs BA_EC (from YAML)x'
   plot1_xlabel: 'Chronological Age (YAML)x'
@@ -51,4 +51,4 @@ plot_labels:
   plot3_xlabel: 'BA Acceleration (Years) (YAML)'
   plot3_ylabel: 'Density / Frequency (YAML)'
 
-# --- End of config.yaml ---
+#end of config.yaml
