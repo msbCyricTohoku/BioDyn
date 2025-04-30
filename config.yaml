@@ -4,7 +4,7 @@
 #important config, basedata, intermediate results and Age column name in your basedata.csv
 DATASET_PATH: 'basedata.csv'
 INTERMEDIATE_RESULTS_PATH: 'intermediate_results.xlsx'
-AGE_COLUMN_NAME: 'Age (years)' #note this must match your exact Age column name in ur basedata
+AGE_COLUMN_NAME: 'Age' #note this must match your exact Age column name in ur basedata
 
 #here are the biomarkers user can select dynamically according to the basedata.csv columns
 #you can choose some or all of your biomarkers in your basedata.csv
@@ -26,15 +26,15 @@ BIOMARKER_FEATURES:
 #here we define default values that will showup at BioDyn web interface
 #same deal, the name must match BIOMARKER_FEATURE ones then the default val can be defined
 DEFAULT_BIOMARKER_VALUES:
-  'SBP (mmHg)': 120
-  'DBP (mmHg)': 80
-  'Cholesterol (LDL Calc)': 3.0
-  'Cholesterol (Total)': 5.0
-  'Triglycerides': 1.7
-  'Glucose Fasting': 5.6
-  'Alanine Aminotransferase' : 21.83
+  'SBP (mmHg)': 117
+  'DBP (mmHg)': 62
+  'Cholesterol (LDL Calc)': 1.7988
+  'Cholesterol (Total)': 3.35
+  'Triglycerides': 1.5
+  'Glucose Fasting': 8.3
+  'Alanine Aminotransferase' : 21.83333
   'Albumin' : 41
-  'Alkaline Phosphatase (Total)' : 92.67
+  'Alkaline Phosphatase (Total)' : 92.66667
   'Protein (Total)' : 72
   'Creatinine' : 83.8
   'Urea' : 6.4
@@ -42,6 +42,15 @@ DEFAULT_BIOMARKER_VALUES:
 
 #here is how to define default age value for the web interface of BioDyn
 DEFAULT_AGE_FORM_VALUE: 89.06
+
+#thresholds here
+MIN_S_VALUE: 1e-9 
+MIN_DENOMINATOR: 1e-15
+MIN_VARIANCE: 1e-10 
+MIN_R_CHAR: 1e-9   
+S2_BA_FLOOR: 1e-3  
+SIG_CORR_VAL: 0.10 
+SIG_P_THRESH: 0.05 
 
 #if you wish to add PCA or not set to true or false respectively
 USE_PCA: false #set true/false as needed
@@ -51,6 +60,8 @@ PLOTS_OUTPUT_DIR: 'generated_plots/'
 SAVE_TRAINING_BA_VALUES: true
 SAVE_PLOTS_ON_TRAIN: true
 PLOT_FILENAME_TIMESTAMP: true
+
+
 
 #plot labels can be controlled here
 plot_labels:

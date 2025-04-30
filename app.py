@@ -1,5 +1,5 @@
 #BioDyn
-#Developed by Mehrdad S. Beni -- April 2025
+#Developed by Mehrdad S. Beni -- May 2025
 #import config #import the configuration file
 import yaml
 import sys
@@ -17,6 +17,8 @@ import matplotlib
 matplotlib.use('Agg') # <--set backend BEFORE importing pyplot
 import matplotlib.pyplot as plt
 import traceback
+from scipy.stats import pearsonr
+
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #here we load the yaml file
@@ -25,9 +27,11 @@ def load_config_from_yaml(filepath='config.yaml'):
 
     required_keys = [
         'DATASET_PATH', 'INTERMEDIATE_RESULTS_PATH', 'AGE_COLUMN_NAME',
-        'BIOMARKER_FEATURES', 'USE_PCA', 'DEFAULT_BIOMARKER_VALUES',
-        'DEFAULT_AGE_FORM_VALUE', 'PLOTS_OUTPUT_DIR', 'SAVE_TRAINING_BA_VALUES',
-        'SAVE_PLOTS_ON_TRAIN', 'PLOT_FILENAME_TIMESTAMP', 'plot_labels'
+        'BIOMARKER_FEATURES','USE_PCA','DEFAULT_BIOMARKER_VALUES',
+        'DEFAULT_AGE_FORM_VALUE','MIN_S_VALUE','MIN_DENOMINATOR', 
+        'MIN_VARIANCE','MIN_R_CHAR','S2_BA_FLOOR','SIG_CORR_VAL',
+        'SIG_P_THRESH','PLOTS_OUTPUT_DIR','SAVE_TRAINING_BA_VALUES',
+        'SAVE_PLOTS_ON_TRAIN','PLOT_FILENAME_TIMESTAMP', 'plot_labels'
     ]
 
     required_plot_label_keys = [
@@ -103,7 +107,6 @@ def get_timestamp_string():
 #load config
 APP_CONFIG = load_config_from_yaml()
 
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #global variable definitions
 DATASET_PATH = APP_CONFIG['DATASET_PATH']
 INTERMEDIATE_RESULTS_PATH = APP_CONFIG['INTERMEDIATE_RESULTS_PATH']
@@ -112,10 +115,25 @@ FEATURE_COLUMNS = APP_CONFIG['BIOMARKER_FEATURES']
 USE_PCA = APP_CONFIG['USE_PCA']
 DEFAULT_BIOMARKER_VALUES = APP_CONFIG['DEFAULT_BIOMARKER_VALUES']
 DEFAULT_AGE_FORM_VALUE = APP_CONFIG['DEFAULT_AGE_FORM_VALUE']
+
+
+#threshold constants
+MIN_S_VALUE = float(APP_CONFIG['MIN_S_VALUE'])      #skip components with near-zero RMSE
+MIN_DENOMINATOR = float(APP_CONFIG['MIN_DENOMINATOR'])     #avoid divide-by-tiny denominator
+MIN_VARIANCE = float(APP_CONFIG['MIN_VARIANCE'])     #skip regressions on near-constant data
+MIN_R_CHAR = float(APP_CONFIG['MIN_R_CHAR'])      #avoid invalid r_char sqrt(1-r^2)
+S2_BA_FLOOR  = float(APP_CONFIG['S2_BA_FLOOR'])      #floor for S2_BA
+SIG_CORR_VAL = float(APP_CONFIG['SIG_CORR_VAL'])      #set Pearson correlation coeff. for report
+SIG_P_THRESH = float(APP_CONFIG['SIG_P_THRESH'])      #set P value threshold for report
+
+
+
 PLOTS_OUTPUT_DIR = APP_CONFIG['PLOTS_OUTPUT_DIR']
 SAVE_TRAINING_BA_VALUES = APP_CONFIG['SAVE_TRAINING_BA_VALUES']
 SAVE_PLOTS_ON_TRAIN = APP_CONFIG['SAVE_PLOTS_ON_TRAIN']
 PLOT_FILENAME_TIMESTAMP = APP_CONFIG['PLOT_FILENAME_TIMESTAMP']
+
+
 #plot labels from yaml file
 _plot_labels_dict = APP_CONFIG.get('plot_labels', {})
 PLOT1_TITLE = _plot_labels_dict.get('plot1_title', 'Default Plot 1 Title')
@@ -144,7 +162,7 @@ def calculate_ba_e(x_values, q_values, k_values, s_values):
     for j in range(num_components):
         if j >= len(k_values) or j >= len(s_values) or j >= len(q_values): 
             continue
-        if s_values[j] is None or np.isnan(s_values[j]) or s_values[j] < 1e-9: 
+        if s_values[j] is None or np.isnan(s_values[j]) or s_values[j] < MIN_S_VALUE: 
             continue
         if k_values[j] is None or np.isnan(k_values[j]): 
             continue
@@ -160,12 +178,13 @@ def calculate_ba_e(x_values, q_values, k_values, s_values):
             if np.isnan(term) or np.isnan(denominator_term): 
                 continue
             
-            numerator += term; denominator += denominator_term
+            numerator += term; 
+            denominator += denominator_term
 
         except (ValueError, TypeError, ZeroDivisionError): 
             continue
             
-    if abs(denominator) < 1e-15: 
+    if abs(denominator) < MIN_DENOMINATOR: 
         return np.nan
     return numerator / denominator
 
@@ -179,7 +198,7 @@ def calculate_ba_ec(x_values, q_values, k_values, s_values, ca, s2_ba):
     for j in range(num_components):
         if j >= len(k_values) or j >= len(s_values) or j >= len(q_values): 
             continue
-        if s_values[j] is None or np.isnan(s_values[j]) or s_values[j] < 1e-9: 
+        if s_values[j] is None or np.isnan(s_values[j]) or s_values[j] < MIN_S_VALUE: 
             continue
         if k_values[j] is None or np.isnan(k_values[j]): 
             continue
@@ -194,18 +213,24 @@ def calculate_ba_ec(x_values, q_values, k_values, s_values, ca, s2_ba):
             
             if np.isnan(term) or np.isnan(denominator_term): 
                 continue
-            numerator += term; denominator += denominator_term
+            
+            numerator += term; 
+            denominator += denominator_term
         
         except (ValueError, TypeError, ZeroDivisionError): 
             continue
     if s2_ba is not None and not np.isnan(s2_ba) and s2_ba > 1e-9:
         try:
             if np.isnan(ca): return np.nan
-            numerator += ca / s2_ba; denominator += 1 / s2_ba
+            numerator += ca / s2_ba; 
+            denominator += 1 / s2_ba
+
+            #print("GGGGGGG -->",ca / s2_ba)
+            #print("GGGGGGG -->",1 / s2_ba)
 
         except (ValueError, TypeError, ZeroDivisionError): return np.nan
 
-    if abs(denominator) < 1e-15: 
+    if abs(denominator) < MIN_DENOMINATOR: 
         return np.nan
 
     return numerator / denominator #1e-9 tolerance was used to avoid divide by small number or zero that leads to blowup (change if needed)
@@ -223,7 +248,7 @@ def calculate_r_char(r_values):
         
         sqrt_term_val = 1 - r**2
 
-        if sqrt_term_val <= 1e-9: 
+        if sqrt_term_val <= MIN_R_CHAR: 
             continue
 
         sqrt_term = np.sqrt(sqrt_term_val)
@@ -257,7 +282,7 @@ def calculate_s2_ba(ba_e_list, ca_list, r_char, m):
     n = len(ba_e_list_valid)
 
     #parameter checks
-    if n < 2 or m <= 0 or r_char is None or np.isnan(r_char) or abs(r_char) < 1e-9:
+    if n < 2 or m <= 0 or r_char is None or np.isnan(r_char) or abs(r_char) < MIN_R_CHAR:
         print(f"[S2_BA Calc - Pop] Invalid input params: n={n}, m={m}, r_char={r_char}. Cannot divide by r_char^2.")
         return np.nan
     if abs(r_char) >= 1:
@@ -266,18 +291,25 @@ def calculate_s2_ba(ba_e_list, ca_list, r_char, m):
 
     #term 1 calculation (here we use population variance like Levine paper but sample is better -- observed not much diffs.)
     ba_minus_ca = ba_e_list_valid - ca_list_valid
-    #here we use ddof=0 for population variance (divides by n) -- tried manually too same thing
+    #here we use ddof=0 for population variance (divides by n) -- tried manually too same thing -- change to 1 for sample
     var_ba_minus_ca_pop = np.var(ba_minus_ca, ddof=0)
+
     term1 = var_ba_minus_ca_pop
 
     #term 2 calculation
     ca_range = np.max(ca_list_valid) - np.min(ca_list_valid)
-    var_ca_approx = 0.0 if ca_range < 1e-9 else (ca_range ** 2) / 12.0
+    
+    #expanded from the inline conditional:
+    if ca_range < 1e-9:
+        var_ca_approx = 0.0
+    else:
+        var_ca_approx = (ca_range ** 2) / 12.0
+
 
     try:
-        factor_A_latex = (1.0 - r_char**2) / (r_char**2)
+        factor_A = (1.0 - r_char**2) / (r_char**2)
         factor_B = var_ca_approx / m
-        term2 = factor_A_latex * factor_B
+        term2 = factor_A * factor_B
     except Exception as e:
         print(f"[S2_BA Calc - Pop] Error calculating Term 2: {e}")
         traceback.print_exc()
@@ -285,7 +317,11 @@ def calculate_s2_ba(ba_e_list, ca_list, r_char, m):
 
     #final calculation (still flooring to avoid negative numver or divide by zero for certain data when model fails)
     result = term1 - term2
-    final_s2_ba = max(1e-9, result) if pd.notna(result) and result > 0 else 1e-9
+    
+    if pd.notna(result) and result > 0:
+        final_s2_ba = max(S2_BA_FLOOR, result)
+    else:
+        final_s2_ba = S2_BA_FLOOR
 
     return final_s2_ba
 
@@ -326,6 +362,9 @@ r_values = []
 r_char = 0; 
 S2_BA = 0
 last_training_stats = {}
+last_training_failed = False
+selected_indices = [] # <-- ADD THIS: Store indices of selected features/PCs
+selected_labels = [] # <-- ADD THIS: Store labels of selected features/PCs (optional but good for logging)
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #loading the dataset referred from config file
@@ -575,7 +614,7 @@ def generate_and_save_plots(df_results, output_dir):
     
     df_plot = df_results.dropna(subset=required_plot_cols).copy()
     
-    #print(f"[PLOT GEN DEBUG] df_plot shape after dropna: {df_plot.shape}") 
+    #print(f"[PLOT GEN DBG] df_plot shape after dropna: {df_plot.shape}") 
     
     if df_plot.empty: 
         print("[PLOT GEN] No valid data rows remaining for plotting.")
@@ -677,240 +716,253 @@ def generate_and_save_plots(df_results, output_dir):
     except Exception as e: print(f"[PLOT GEN] Error during plot saving: {e}"); plt.close()
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def write_significance_report(predictor_results, num_analysis_rows, num_predictors_analyzed,
+                              predictor_type_desc, output_filename="BioDyn-report.txt",
+                              sig_corr_threshold=SIG_CORR_VAL, sig_p_threshold=SIG_P_THRESH):
+
+    ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{ts}] [REPORT] Generating significance report...")
+
+    # 1) filter for significant predictors
+    significant = []
+    for res in predictor_results:
+        r_val = res.get('r')
+        p_val = res.get('p')
+        if isinstance(r_val, (int, float)) and isinstance(p_val, (int, float)) and \
+           pd.notna(r_val) and pd.notna(p_val):
+            if abs(r_val) > sig_corr_threshold and p_val < sig_p_threshold:
+                significant.append(res)
+
+    try:
+        with open(output_filename, "w") as f:
+            # header
+            f.write(f"BioDyn Significance Report ({ts})\n")
+            f.write("=" * 60 + "\n")
+            f.write(f"Analysis based on: {num_analysis_rows} complete data rows.\n")
+            f.write(f"Predictors Analyzed: {num_predictors_analyzed} ({predictor_type_desc})\n")
+            f.write(f"Significance Criteria: |r| > {sig_corr_threshold} AND p < {sig_p_threshold}\n")
+            f.write("-" * 60 + "\n\n")
+
+            # 2) significant list
+            if significant:
+                f.write(f"Significant Predictors Found ({len(significant)}):\n")
+                significant.sort(key=lambda x: abs(x.get('r', 0)), reverse=True)
+                for pred in significant:
+                    lbl = pred.get('label', 'Unknown')
+                    r_val = pred.get('r', 0)
+                    p_val = pred.get('p', 1)
+                    f.write(f"- {lbl:<30} (r = {r_val:+.3f}, p = {p_val:.4g})\n")
+                f.write("\nRecommendations:\n")
+                f.write("  • Focus on these predictors for targeted analysis.\n")
+                f.write("  • Update BIOMARKER_FEATURES in config.yaml or interpret these PCs if using PCA.\n")
+            else:
+                f.write("No predictors met the specified significance criteria.\n")
+
+            # 3) overall correlation summary
+            f.write("\nOverall Predictor Correlation Summary:\n")
+            rs = [res.get('r', 0) for res in predictor_results]
+            if rs:
+                avg_abs = np.mean([abs(r) for r in rs])
+                num_pos = sum(1 for r in rs if r > 0)
+                num_neg = sum(1 for r in rs if r < 0)
+                sorted_by_r = sorted(predictor_results, key=lambda x: x.get('r', 0))
+                lowest  = sorted_by_r[0]
+                highest = sorted_by_r[-1]
+
+                f.write(f"- Average |r|: {avg_abs:.3f}\n")
+                f.write(f"- Positive correlations: {num_pos}/{len(rs)}\n")
+                f.write(f"- Negative correlations: {num_neg}/{len(rs)}\n")
+                f.write(f"- Highest r: {highest.get('label','Unknown')} (r = {highest.get('r'):+.3f}, p = {highest.get('p'):.4g})\n")
+                f.write(f"- Lowest  r: {lowest.get('label','Unknown')} (r = {lowest.get('r'):+.3f}, p = {lowest.get('p'):.4g})\n")
+
+            # 4) feature retention recommendations
+            f.write("\nFeature Retention Recommendations:\n")
+            f.write("-" * 60 + "\n")
+            f.write(f"Predictors sorted by |r| (threshold = {sig_corr_threshold}):\n\n")
+            sorted_preds = sorted(predictor_results, key=lambda x: abs(x.get('r', 0)), reverse=True)
+            for pred in sorted_preds:
+                lbl   = pred.get('label', 'Unknown')
+                r_val = pred.get('r', 0)
+                mark  = "✓ KEEP" if abs(r_val) >= sig_corr_threshold else "  drop"
+                f.write(f"{mark}  {lbl:<30} (r = {r_val:+.3f})\n")
+            f.write("\nRecommendations:\n")
+            f.write("  • Keep all predictors marked ✓ KEEP when building your next PCA or feature set.\n")
+            f.write("  • Remove (or review) those marked “drop” to reduce noise.\n")
+
+            # footer
+            f.write("\n" + "=" * 60 + "\n")
+
+        print(f"[{ts}] [REPORT] Significance report saved to '{output_filename}'")
+        return True
+
+    except Exception as report_err:
+        print(f"[{ts}] [REPORT] WARNING: Could not write report '{output_filename}': {report_err}")
+        traceback.print_exc()
+        return False
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #model training with statistical calc.
 def train_model():
     global scaler, pca, q_values, k_values, s_values, r_values, r_char, S2_BA, USE_PCA, FEATURE_COLUMNS, last_training_stats
 
-    print(f"\n--- Training Model ---"); 
-    
+    print(f"\n--- Training Model ---");
     print(f"Using features: {FEATURE_COLUMNS}")
-    
     print(f"PCA Enabled: {USE_PCA}")
 
     scaler = None
-
     pca = None
-    
     q_values = []
-    
     k_values = []
-    
-    s_values = [] 
-    
+    s_values = []
     r_values = []
-    
     r_char = 0
-
-    S2_BA = 0 
-    
+    S2_BA = 0
     last_training_stats.clear()
 
-    if not FEATURE_COLUMNS: 
+    if not FEATURE_COLUMNS:
         print("[TRAIN ERROR] No features defined.")
         return False
-    
+
     try:
         df_dataset = load_dataset()
-        
         required_cols = FEATURE_COLUMNS + [AGE_COLUMN_NAME]
-        
         if not all(col in df_dataset.columns for col in required_cols):
             print(f"[TRAIN ERROR] Dataset missing cols."); return False
-        
-        if df_dataset.empty: 
-            print("[TRAIN ERROR] Dataset empty.")
-            return False
-        
+        if df_dataset.empty:
+            print("[TRAIN ERROR] Dataset empty."); return False
+
         df_analysis = df_dataset.dropna(subset=required_cols).copy()
-        
-        if len(df_analysis) < 2: 
-            print(f"[TRAIN ERROR] Need >= 2 complete rows, found {len(df_analysis)}.")
-            return False
-        
+        if len(df_analysis) < 2:
+            print(f"[TRAIN ERROR] Need >= 2 complete rows, found {len(df_analysis)}."); return False
+
         print(f"Training model on {len(df_analysis)} complete rows.")
 
-        #here standardization, PCA, and Regression will be done
-        scaler = StandardScaler(); 
-        
+        #standardize
+        scaler = StandardScaler()
         df_standardized = scaler.fit_transform(df_analysis[FEATURE_COLUMNS])
-        
         X_age = df_analysis[[AGE_COLUMN_NAME]].values
-        
-        data_for_regression = None; 
-        
+
+        #choose regressors (PCA or raw)
+        data_for_regression = None
         column_labels_for_regression = []
-        
         num_regressors = len(FEATURE_COLUMNS)
-        
+
         if USE_PCA:
             n_components = min(len(FEATURE_COLUMNS), len(df_analysis))
-            
-            if n_components <= 0: 
-                print("[TRAIN ERROR] PCA components <= 0.")
-                return False
-            
+            if n_components <= 0:
+                print("[TRAIN ERROR] PCA components <= 0."); return False
             pca = PCA(n_components=n_components)
-            
             principal_components = pca.fit_transform(df_standardized)
-            
             data_for_regression = principal_components
-            
             column_labels_for_regression = [f'PC{i+1}' for i in range(n_components)]
-            
             num_regressors = n_components
-        
-        else: 
-            
+        else:
             data_for_regression = df_standardized
-
             column_labels_for_regression = FEATURE_COLUMNS
-        
-        temp_q = []
-        temp_k = []
-        temp_s = [] 
-        temp_r = []
-        
+
+        #regression loop, collect q, k, s, r, p
+        temp_q, temp_k, temp_s, temp_r, temp_p = [], [], [], [], []
         for i in range(num_regressors):
-            
-            y_predictor = data_for_regression[:, i].reshape(-1, 1)
-            
-            predictor_label = column_labels_for_regression[i]
-            
-            if np.var(y_predictor) < 1e-10: slope, intercept, rmse, r_j = 0.0, 0.0, 0.0, 0.0
+            y_predic = data_for_regression[:, i].reshape(-1, 1)
+            lbl = column_labels_for_regression[i]
+            if np.var(y_predic) < 1e-10:
+                slope, intercept, rmse, r_j, p_j = 0.0, 0.0, 0.0, 0.0, 1.0
             else:
                 try:
-                    regression_model = LinearRegression().fit(X_age, y_predictor)
-                    
-                    slope = regression_model.coef_[0][0]; 
-                    
-                    intercept = regression_model.intercept_[0]
-                    
-                    y_pred = regression_model.predict(X_age); 
-                    
-                    rmse = np.sqrt(mean_squared_error(y_predictor, y_pred))
-                    
-                    if X_age.shape[0] > 1 and np.std(X_age.flatten()) > 1e-9 and np.std(y_predictor.flatten()) > 1e-9: 
-                        r_j = np.corrcoef(X_age.flatten(), y_predictor.flatten())[0, 1]
-                        print(r_j)
-                    else: r_j = 0.0
-
-                except Exception as reg_e: 
+                    mdl = LinearRegression().fit(X_age, y_predic)
+                    slope    = mdl.coef_[0][0]
+                    intercept= mdl.intercept_[0]
+                    y_hat    = mdl.predict(X_age)
+                    rmse     = np.sqrt(mean_squared_error(y_predic, y_hat))
+                    if X_age.shape[0] > 1 and np.std(X_age.flatten()) > 1e-9 and np.std(y_predic.flatten()) > 1e-9:
+                        r_j, p_j = pearsonr(X_age.flatten(), y_predic.flatten()); print(r_j)
+                    else:
+                        r_j, p_j = 0.0, 1.0
+                except Exception as reg_e:
                     print(f"[TRAIN ERROR] Regression failed: {reg_e}.")
-                    slope = 0.0
-                    intercept = 0.0 
-                    rmse = 0.0 
-                    r_j = 0.0
+                    slope, intercept, rmse, r_j, p_j = 0.0, 0.0, 0.0, 0.0, 1.0
 
-            temp_q.append(intercept) 
+            temp_q.append(intercept)
             temp_k.append(slope)
-            temp_s.append(rmse if not np.isnan(rmse) else 0.0) 
+            temp_s.append(rmse if not np.isnan(rmse) else 0.0)
             temp_r.append(r_j if not np.isnan(r_j) else 0.0)
+            temp_p.append(p_j if not np.isnan(p_j) else 1.0)
 
-        q_values[:] = temp_q[:num_regressors] 
-        k_values[:] = temp_k[:num_regressors] 
+        #assign global lists
+        q_values[:] = temp_q[:num_regressors]
+        k_values[:] = temp_k[:num_regressors]
         s_values[:] = temp_s[:num_regressors]
         r_values[:] = temp_r[:num_regressors]
 
-        #print(f"[TRAIN DBG] q_values (first 5): {q_values[:5]}")
-        #print(f"[TRAIN DBG] k_values (first 5): {k_values[:5]}")
-        #print(f"[TRAIN DBG] s_values (RMSEs): {s_values}") 
-        #print(f"[TRAIN DBG] r_values (first 5): {r_values[:5]}")
-
-        #KDM calcs, stats, save, plots ---
+        #KDM function, BA_E, S2_BA, BA_EC
         r_char = calculate_r_char(r_values)
-        
         print(f"Calculated r_char: {r_char:.4f}")
-        
-        ca_list = df_analysis[AGE_COLUMN_NAME].tolist()
-        
-        ba_e_list = []; 
-        
-        df_results_dict = {AGE_COLUMN_NAME: ca_list, 'BA_E': [], 'BA_EC': []}
-        
-        for row_idx in range(len(df_analysis)):
-        
-            input_values_for_ba = data_for_regression[row_idx, :].tolist()
-        
-            ba_e = calculate_ba_e(input_values_for_ba, q_values, k_values, s_values)
-        
-            ba_e_list.append(ba_e)
-        
-            df_results_dict['BA_E'].append(ba_e)
-        
-        m = len(FEATURE_COLUMNS)
-        
-        S2_BA = calculate_s2_ba(ba_e_list, ca_list, r_char, m)
-        
-        print(f"Calculated S2_BA: {S2_BA}")
 
-        if S2_BA is None or np.isnan(S2_BA): 
-            print("Warning: S2_BA is NaN.")
-            S2_BA = np.nan
+        ca_list = df_analysis[AGE_COLUMN_NAME].tolist()
+        ba_e_list = []
+        df_results_dict = {AGE_COLUMN_NAME: ca_list, 'BA_E': [], 'BA_EC': []}
+        for idx in range(len(df_analysis)):
+            iv = data_for_regression[idx, :].tolist()
+            ba_e = calculate_ba_e(iv, q_values, k_values, s_values)
+            ba_e_list.append(ba_e)
+            df_results_dict['BA_E'].append(ba_e)
+
+        m = len(FEATURE_COLUMNS)
+        S2_BA = calculate_s2_ba(ba_e_list, ca_list, r_char, m)
+        print(f"Calculated S2_BA: {S2_BA}")
+        if S2_BA is None or np.isnan(S2_BA):
+            print("Warning: S2_BA is NaN."); S2_BA = np.nan
 
         ba_ec_list = []
-        
-        for row_idx in range(len(df_analysis)):
-            
-            input_values_for_ba = data_for_regression[row_idx, :].tolist(); 
-            
-            ca = ca_list[row_idx]
-            
-            if np.isnan(S2_BA) or np.isnan(ca): 
-                ba_ec = np.nan
-            
-            else: 
-                ba_ec = calculate_ba_ec(input_values_for_ba, q_values, k_values, s_values, ca, S2_BA)
-            
+        for idx in range(len(df_analysis)):
+            iv = data_for_regression[idx, :].tolist()
+            ca_val = ca_list[idx]
+            ba_ec = np.nan if np.isnan(S2_BA) or np.isnan(ca_val) else calculate_ba_ec(iv, q_values, k_values, s_values, ca_val, S2_BA)
             ba_ec_list.append(ba_ec)
-            
             df_results_dict['BA_EC'].append(ba_ec)
 
         df_results = pd.DataFrame(df_results_dict)
-
         df_results['BA_Accel'] = df_results['BA_EC'] - df_results[AGE_COLUMN_NAME]
 
-        
-        stat_cols_to_check = [AGE_COLUMN_NAME, 'BA_EC', 'BA_Accel']
-        
-        valid_results = df_results.dropna(subset=stat_cols_to_check).copy()
-
-        if not valid_results.empty and len(valid_results) > 1:
-            print(f"Calculating statistics on {len(valid_results)} valid rows...")
+        #training statistics
+        stat_cols = [AGE_COLUMN_NAME, 'BA_EC', 'BA_Accel']
+        valid = df_results.dropna(subset=stat_cols).copy()
+        if not valid.empty and len(valid) > 1:
+            print(f"Calculating statistics on {len(valid)} valid rows...")
             try:
-                
-                last_training_stats['MAE_BAEC_vs_CA'] = mean_absolute_error(valid_results[AGE_COLUMN_NAME], valid_results['BA_EC'])
-                
-                last_training_stats['Corr_BAEC_vs_CA'] = np.corrcoef(valid_results[AGE_COLUMN_NAME], valid_results['BA_EC'])[0, 1]
-                
-                last_training_stats['Mean_BA_Accel'] = valid_results['BA_Accel'].mean()
-                
-                last_training_stats['SD_BA_Accel'] = valid_results['BA_Accel'].std()
-                
-                last_training_stats['Mean_BA_EC'] = valid_results['BA_EC'].mean()
-                
-                last_training_stats['SD_BA_EC'] = valid_results['BA_EC'].std()
-                
+                last_training_stats['MAE_BAEC_vs_CA'] = mean_absolute_error(valid[AGE_COLUMN_NAME], valid['BA_EC'])
+                last_training_stats['Corr_BAEC_vs_CA'] = np.corrcoef(valid[AGE_COLUMN_NAME], valid['BA_EC'])[0,1]
+                last_training_stats['Mean_BA_Accel'] = valid['BA_Accel'].mean()
+                last_training_stats['SD_BA_Accel']   = valid['BA_Accel'].std()
+                last_training_stats['Mean_BA_EC']    = valid['BA_EC'].mean()
+                last_training_stats['SD_BA_EC']      = valid['BA_EC'].std()
                 print(f"Calculated Stats: MAE={last_training_stats.get('MAE_BAEC_vs_CA', 'N/A'):.2f}, Corr={last_training_stats.get('Corr_BAEC_vs_CA', 'N/A'):.2f}")
-
             except Exception as stat_err:
-                 print(f"[TRAIN ERROR] Could not calculate statistics: {stat_err}")
-                 #clear partially filled stats
-                 last_training_stats.clear()
-                 last_training_stats['Stats_Error'] = str(stat_err) #record error in stats dict
+                print(f"[TRAIN ERROR] Could not calculate statistics: {stat_err}")
+                last_training_stats.clear()
+                last_training_stats['Stats_Error'] = str(stat_err)
         else:
-            print(f"Warning: Not enough valid data points ({len(valid_results)}) to calculate reliable training statistics.")
-            last_training_stats.clear() #clear stats if no valid data
-        
+            print(f"Warning: Not enough valid data points ({len(valid)}) to calculate reliable training statistics.")
+            last_training_stats.clear()
 
-        #print(f"[TRAIN DBG] Config flags: SAVE_TRAINING_BA={SAVE_TRAINING_BA_VALUES}, SAVE_PLOTS={SAVE_PLOTS_ON_TRAIN}")
-        #print(f"[TRAIN DBG] df_results shape before saving/plotting: {df_results.shape}") 
-        #print(f"[TRAIN DBG] df_results NaNs before saving/plotting:\n{df_results.isnull().sum()}") 
-
+        #save and plot
         save_intermediate_results(df_results)
-
         if SAVE_PLOTS_ON_TRAIN:
             generate_and_save_plots(df_results, PLOTS_OUTPUT_DIR)
+
+        #significance report
+        predictor_type_desc = "PCA components" if USE_PCA else "Standardized features"
+        predictor_results = [
+            {'label': column_labels_for_regression[i], 'r': r_values[i], 'p': temp_p[i]}
+            for i in range(num_regressors)
+        ]
+        write_significance_report(
+            predictor_results,
+            num_analysis_rows=len(df_analysis),
+            num_predictors_analyzed=num_regressors,
+            predictor_type_desc=predictor_type_desc,
+            output_filename="BioDyn-significance-report.txt"
+        )
 
         print("--- Model Training Completed Successfully ---")
         return True
@@ -918,13 +970,8 @@ def train_model():
     except Exception as e:
         print(f"ERROR during model training: {e}")
         traceback.print_exc()
-        pca = None
-        q_values = []
-        k_values = []
-        s_values = [] 
-        r_values = []
-        r_char = 0 
-        S2_BA = 0
+        #reset globals
+        pca = None; q_values=[]; k_values=[]; s_values=[]; r_values=[]; r_char=0; S2_BA=0
         last_training_stats.clear()
         return False
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1084,7 +1131,7 @@ def index():
             if biological_age_result is not None: 
                 flash(f"Biological Age (BA_EC): {biological_age_result:.2f}", 'success')
             
-            print(f"[DEBUG] Value passed to template: biological_age = {biological_age_result}") # <-- ADD THIS LINE
+            print(f"[DBG] Value passed to template: biological_age = {biological_age_result}") # <-- ADD THIS LINE
         
         except KeyError as e: 
             missing_field = str(e).strip("'"); 
@@ -1173,7 +1220,7 @@ def plot():
         scaler is not None and
         (pca is not None if USE_PCA else True) and
         k_values and #check if lists are populated
-        S2_BA is not None and not np.isnan(S2_BA) and S2_BA > 1e-9 #check S2_BA validity
+        S2_BA is not None and not np.isnan(S2_BA) #and S2_BA > 1e-9 #check S2_BA validity
     )
     
     if not model_ready:

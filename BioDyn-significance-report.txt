@@ -1,0 +1,51 @@
+BioDyn Significance Report (2025-05-01 01:27:29)
+============================================================
+Analysis based on: 2348 complete data rows.
+Predictors Analyzed: 12 (Standardized features)
+Significance Criteria: |r| > 0.1 AND p < 0.05
+------------------------------------------------------------
+
+Significant Predictors Found (9):
+- DBP (mmHg)                     (r = -0.349, p = 2.82e-68)
+- Albumin                        (r = -0.285, p = 4.099e-45)
+- Urea                           (r = +0.275, p = 4.166e-42)
+- Creatinine                     (r = +0.163, p = 2.053e-15)
+- SBP (mmHg)                     (r = +0.161, p = 3.613e-15)
+- Protein (Total)                (r = -0.146, p = 1.046e-12)
+- Cholesterol (Total)            (r = -0.129, p = 3.055e-10)
+- Alanine Aminotransferase       (r = -0.122, p = 3.459e-09)
+- Cholesterol (LDL Calc)         (r = -0.104, p = 4.239e-07)
+
+Recommendations:
+  • Focus on these predictors for targeted analysis.
+  • Update BIOMARKER_FEATURES in config.yaml or interpret these PCs if using PCA.
+
+Overall Predictor Correlation Summary:
+- Average |r|: 0.162
+- Positive correlations: 4/12
+- Negative correlations: 8/12
+- Highest r: Urea (r = +0.275, p = 4.166e-42)
+- Lowest  r: DBP (mmHg) (r = -0.349, p = 2.82e-68)
+
+Feature Retention Recommendations:
+------------------------------------------------------------
+Predictors sorted by |r| (threshold = 0.1):
+
+✓ KEEP  DBP (mmHg)                     (r = -0.349)
+✓ KEEP  Albumin                        (r = -0.285)
+✓ KEEP  Urea                           (r = +0.275)
+✓ KEEP  Creatinine                     (r = +0.163)
+✓ KEEP  SBP (mmHg)                     (r = +0.161)
+✓ KEEP  Protein (Total)                (r = -0.146)
+✓ KEEP  Cholesterol (Total)            (r = -0.129)
+✓ KEEP  Alanine Aminotransferase       (r = -0.122)
+✓ KEEP  Cholesterol (LDL Calc)         (r = -0.104)
+  drop  Triglycerides                  (r = -0.082)
+  drop  Alkaline Phosphatase (Total)   (r = +0.073)
+  drop  Glucose Fasting                (r = -0.058)
+
+Recommendations:
+  • Keep all predictors marked ✓ KEEP when building your next PCA or feature set.
+  • Remove (or review) those marked “drop” to reduce noise.
+
+============================================================
