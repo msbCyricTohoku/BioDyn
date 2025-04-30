@@ -16,6 +16,12 @@ BIOMARKER_FEATURES:
   - 'Cholesterol (Total)'
   - 'Triglycerides'
   - 'Glucose Fasting'
+  - 'Alanine Aminotransferase'
+  - 'Albumin'
+  - 'Alkaline Phosphatase (Total)'
+  - 'Protein (Total)'
+  - 'Creatinine'
+  - 'Urea'
 
 #here we define default values that will showup at BioDyn web interface
 #same deal, the name must match BIOMARKER_FEATURE ones then the default val can be defined
@@ -26,12 +32,19 @@ DEFAULT_BIOMARKER_VALUES:
   'Cholesterol (Total)': 5.0
   'Triglycerides': 1.7
   'Glucose Fasting': 5.6
+  'Alanine Aminotransferase' : 21.83
+  'Albumin' : 41
+  'Alkaline Phosphatase (Total)' : 92.67
+  'Protein (Total)' : 72
+  'Creatinine' : 83.8
+  'Urea' : 6.4
+
 
 #here is how to define default age value for the web interface of BioDyn
-DEFAULT_AGE_FORM_VALUE: 55
+DEFAULT_AGE_FORM_VALUE: 89.06
 
 #if you wish to add PCA or not set to true or false respectively
-USE_PCA: true #set true/false as needed
+USE_PCA: false #set true/false as needed
 
 #output & saving configs
 PLOTS_OUTPUT_DIR: 'generated_plots/'

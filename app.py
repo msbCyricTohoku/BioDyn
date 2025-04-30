@@ -243,40 +243,52 @@ def calculate_r_char(r_values):
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def calculate_s2_ba(ba_e_list, ca_list, r_char, m):
-    valid_indices = [i for i, (bae, ca) in enumerate(zip(ba_e_list, ca_list)) if bae is not None and not np.isnan(bae) and ca is not None and not np.isnan(ca)]
-    
-    if not valid_indices or len(valid_indices) < 2: 
+    #this is the corrected s2_ba function, original version has mistake and did not match with Levine equations
+    valid_indices = [i for i, (bae, ca) in enumerate(zip(ba_e_list, ca_list))
+                     if bae is not None and not np.isnan(bae) and
+                        ca is not None and not np.isnan(ca)]
+
+    if not valid_indices or len(valid_indices) < 2:
+        print("[S2_BA Calc - Pop] Insufficient valid data.")
         return np.nan
-    
+
     ba_e_list_valid = np.array([ba_e_list[i] for i in valid_indices])
-
     ca_list_valid = np.array([ca_list[i] for i in valid_indices])
-
     n = len(ba_e_list_valid)
 
-    if n < 2 or m <= 0 or r_char is None or np.isnan(r_char) or abs(r_char) >= 1: 
+    #parameter checks
+    if n < 2 or m <= 0 or r_char is None or np.isnan(r_char) or abs(r_char) < 1e-9:
+        print(f"[S2_BA Calc - Pop] Invalid input params: n={n}, m={m}, r_char={r_char}. Cannot divide by r_char^2.")
         return np.nan
-    
-    ba_minus_ca = ba_e_list_valid - ca_list_valid 
-    
-    var_ba_minus_ca = np.var(ba_minus_ca, ddof=1)
-    
-    term1 = var_ba_minus_ca
-    
-    ca_range = np.max(ca_list_valid) - np.min(ca_list_valid)
-     
-    var_ca_approx = 0.0 if ca_range < 1e-9 else (ca_range ** 2) / 12.0
-    
-    if m == 0: 
-        return np.nan
-    
-    term2 = ((1 - r_char**2) * var_ca_approx) / m
-    
-    result = term1 - term2
+    if abs(r_char) >= 1:
+         print(f"[S2_BA Calc - Pop] Invalid r_char value: {r_char}.")
+         return np.nan
 
-    final_s2_ba = max(1e-9, result) if not np.isnan(result) else np.nan
+    #term 1 calculation (here we use population variance like Levine paper but sample is better -- observed not much diffs.)
+    ba_minus_ca = ba_e_list_valid - ca_list_valid
+    #here we use ddof=0 for population variance (divides by n) -- tried manually too same thing
+    var_ba_minus_ca_pop = np.var(ba_minus_ca, ddof=0)
+    term1 = var_ba_minus_ca_pop
+
+    #term 2 calculation
+    ca_range = np.max(ca_list_valid) - np.min(ca_list_valid)
+    var_ca_approx = 0.0 if ca_range < 1e-9 else (ca_range ** 2) / 12.0
+
+    try:
+        factor_A_latex = (1.0 - r_char**2) / (r_char**2)
+        factor_B = var_ca_approx / m
+        term2 = factor_A_latex * factor_B
+    except Exception as e:
+        print(f"[S2_BA Calc - Pop] Error calculating Term 2: {e}")
+        traceback.print_exc()
+        return np.nan
+
+    #final calculation (still flooring to avoid negative numver or divide by zero for certain data when model fails)
+    result = term1 - term2
+    final_s2_ba = max(1e-9, result) if pd.notna(result) and result > 0 else 1e-9
 
     return final_s2_ba
+
 #-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -778,7 +790,9 @@ def train_model():
                     
                     rmse = np.sqrt(mean_squared_error(y_predictor, y_pred))
                     
-                    if X_age.shape[0] > 1 and np.std(X_age.flatten()) > 1e-9 and np.std(y_predictor.flatten()) > 1e-9: r_j = np.corrcoef(X_age.flatten(), y_predictor.flatten())[0, 1]
+                    if X_age.shape[0] > 1 and np.std(X_age.flatten()) > 1e-9 and np.std(y_predictor.flatten()) > 1e-9: 
+                        r_j = np.corrcoef(X_age.flatten(), y_predictor.flatten())[0, 1]
+                        print(r_j)
                     else: r_j = 0.0
 
                 except Exception as reg_e: 
